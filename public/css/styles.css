@@ -1,0 +1,38 @@
+
+body {
+  background-color: #E8ECEF;
+}
+
+.centered {
+    padding-top: 200px;
+    text-align: center;
+}
+
+.secret-text {
+  text-align: center;
+  font-size: 2rem;
+  color: #fff;
+  background-color: #000;
+}
+
+.fas:hover{
+  color: #787A91;
+}
+
+.display-3{
+  margin-top: 2%;
+  font-family: 'Great Vibes', cursive;
+}
+
+.lead{
+  font-family: 'Raleway', sans-serif;
+}
+
+.btn:hover{
+  background-color: #171010;
+  color: #EEEEEE;
+}
+.btn{
+  width : 220px;
+  margin-left: 40%;
+}
