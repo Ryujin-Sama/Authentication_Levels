@@ -5,6 +5,7 @@
 // Lvl-5 Authentication using Hashing and salting with bcrypt
 // Lvl-6 Authentication using Passport.js & Express-Session
 
+
 require('dotenv').config();
 const express = require("express");
 const bodyParser = require("body-parser");
@@ -14,6 +15,9 @@ const md5 = require("md5");
 const session = require("express-session");
 const passport = require("passport");
 const passportLocalMongoose = require("passport-local-mongoose");
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const findOrCreate = require('mongoose-findorcreate');
+
 //const bcrypt = require("bcrypt");
 //const saltRounds = 10  // On increasing the no of rounds the cpu usage is higher inorder to generate the hashes
 
@@ -51,12 +55,15 @@ mongoose.connect("mongodb://localhost:27017/userDB");
 
 const userSchema = new mongoose.Schema({
   email : String,
-  password : String
+  password : String,
+  googleId : String,
+  secret : String
 });
 
 // Passport plugin
 
 userSchema.plugin(passportLocalMongoose);
+userSchema.plugin(findOrCreate);
 
 //Creating ModelDB
 
@@ -65,14 +72,45 @@ const User = new mongoose.model("User", userSchema);
 
 passport.use(User.createStrategy());
 
-passport.serializeUser(User.serializeUser());
-passport.deserializeUser(User.deserializeUser());
+passport.serializeUser(function(user, cb) {
+  cb(null, user.id);
+});
+
+passport.deserializeUser(function(id, cb) {
+  User.findById(id, function(err, user) {
+    cb(err, user);
+  });
+});
+
+passport.use(new GoogleStrategy({
+    clientID: process.env.CLIENT_ID,
+    clientSecret: process.env.CLIENT_SECRETS,
+    callbackURL: "http://localhost:3000/auth/google/secrets",
+    userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo"
+  },
+  function(accessToken, refreshToken, profile, cb) {
+    User.findOrCreate({ googleId: profile.id }, function (err, user) {
+      return cb(err, user);
+    });
+  }
+));
 
 // Get files
 
 app.get("/", function(req,res){
   res.render("home");
 });
+
+app.route('/auth/google')
+  .get(passport.authenticate('google', {
+    scope: ['profile']
+  }));
+app.get("/auth/google/secrets",
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  function(req, res) {
+    // Successful authentication, redirect home.
+    res.redirect("/secrets");
+  });
 
 app.get("/login", function(req,res){
   res.render("login");
@@ -85,12 +123,43 @@ app.get("/register", function(req,res){
 // Adding SECRET page to work only when passwords are matching
 
 app.get("/secrets", function(req,res){
+  User.find({"secret" : {$ne : null}}, function(err, foundUser){
+    if(err){
+      console.log(err);
+    }
+    else{
+      if(foundUser){
+        res.render("secrets", {userswithSecrets : foundUser});
+      }
+    }
+  });
+});
+
+app.get("/submit", function(req,res){
   if(req.isAuthenticated()){
-    res.render("secrets");
+    res.render("submit");
   }
   else{
     res.render("login");
   }
+});
+
+app.post("/submit", function(req,res){
+  const submitted = req.body.secret;
+  User.findById(req.user.id, function(err, foundUser){
+    if(err){
+      console.log(err);
+    }
+    else{
+      if(foundUser){
+        foundUser.secret = submitted;
+        foundUser.save(function(){
+          res.redirect("/secrets");
+        });
+      }
+    }
+  });
+
 });
 
 // Redirecting user to login Page once they Logout
